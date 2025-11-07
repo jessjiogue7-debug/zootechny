@@ -1,0 +1,743 @@
+---
+title: "global_code_bsf"
+author: "Mhant"
+date: "2025-09-15"
+output: html_document
+---
+
+install.packages("rmarkdown")
+library(rmarkdown)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("readxl")
+install.packages("tidyr")
+install.packages("rstringr")
+install.packages("multcompView")
+install.packages("emmeans")
+install.packages("car")
+install.packages("tidyverse")
+
+install.packages(c("httr", "xml2", "rvest", "googledrive", "googlesheets4", "ragg"),
+                 dependencies = TRUE, repos = "https://cloud.r-project.org", type = "binary")
+
+
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(multcompView)
+library(car)
+library(emmeans)
+library(tidyverse)
+```
+
+```{r}
+data_graph <- read_excel("Data_Analyse.xlsx", sheet = 1)
+```
+
+```{r}
+#COURBE EVOLUTION POIDS LARVAIRE
+
+data_courbe <- read_excel("Data_Analyse.xlsx", sheet = 2)
+
+data_long <- data_courbe %>%
+  pivot_longer(
+    cols = -Jours,
+    names_to = "Groupe_Replicat",
+    values_to = "Poids",
+    values_drop_na = TRUE
+  ) %>%
+  separate(Groupe_Replicat, into = c("Souche", "Aliment", "Replicat"), sep = " : ") %>%
+  mutate(
+    Jour = as.numeric(str_replace(Jours, "J", "")),
+    Groupe = interaction(Souche, Aliment, sep = " - ")
+  )
+
+# Calculer les moyennes et écarts-types pour chaque combinaison Jour-Souche-Aliment
+data_summary <- data_long %>%
+  group_by(Jour, Souche, Aliment, Groupe) %>%
+  summarise(
+    Moyenne = mean(Poids, na.rm = TRUE),
+    ET = sd(Poids, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Définir les couleurs pour chaque souche
+couleurs_souches <- c(
+  "China" = "red",
+  "Dschang" = "orange",  # Changé de yellow à orange pour meilleure visibilité
+  "Indonesia" = "purple",
+  "Myanmar" = "green",
+  "Euro" = "blue"
+)
+
+# Définir les types de traits pour chaque aliment
+types_traits <- c(
+  "AM" = "dotted",
+  "CF" = "solid",
+  "WB" = "dashed"
+)
+
+courb <- ggplot(data_summary, aes(x = Jour, y = Moyenne, 
+                                  color = Souche, 
+                                  linetype = Aliment,
+                                  group = Groupe)) +
+  geom_point(size = 2) +
+  geom_line(size = 0.7) +
+  geom_errorbar(aes(ymin = Moyenne - ET, ymax = Moyenne + ET), 
+                width = 0.5, alpha = 0.7, size = 0.7) +
+  scale_color_manual(values = couleurs_souches) +
+  scale_linetype_manual(values = types_traits) +
+  labs(
+    title = "Evolution du poids des larves avec ecarts-types",
+    x = "Jours",
+    y = "Poids moyen"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.margin = margin(t = 5, r = 5, b = 5, l = 5),
+    legend.text = element_text(size = 8),
+    legend.key.width = unit(1.5, "cm"),
+    legend.title = element_text(size = 9, face = "bold")
+  ) +
+  scale_x_continuous(breaks = unique(data_summary$Jour)) +
+  guides(
+    color = guide_legend(title = "Souche", nrow = 1, title.position = "top"),
+    linetype = guide_legend(title = "Aliment", nrow = 1, title.position = "top")
+  )
+```
+
+```{r}
+print(courb)
+
+ggsave("coub_1.png", courb, 
+       width = 8, height = 6, dpi = 500, bg = "white")
+```
+
+```{r}
+#library(tidyverse)
+#library(readxl)
+
+# === Données ===
+data_courbe <- read_excel("Data_Analyse.xlsx", sheet = 2)
+
+data_long <- data_courbe %>%
+  pivot_longer(
+    cols = -Jours,
+    names_to = "Groupe_Replicat",
+    values_to = "Poids",
+    values_drop_na = TRUE
+  ) %>%
+  separate(Groupe_Replicat, into = c("Souche", "Aliment", "Replicat"), sep = " : ") %>%
+  mutate(
+    Jour = as.numeric(str_replace(Jours, "J", "")),
+    Groupe = interaction(Souche, Aliment, sep = " - ")
+  )
+
+data_summary <- data_long %>%
+  group_by(Jour, Souche, Aliment, Groupe) %>%
+  summarise(
+    Moyenne = mean(Poids, na.rm = TRUE),
+    ET = sd(Poids, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# === Palette de couleurs lisibles pour la publication ===
+couleurs_souches <- c(
+  "China" = "#D62728",     # rouge profond
+  "Dschang" = "#FF7F0E",   # orange soutenu
+  "Euro" = "#1F77B4",      # bleu classique
+  "Indonesia" = "#9467BD", # violet doux
+  "Myanmar" = "#2CA02C"    # vert
+)
+
+# === Types de traits pour les aliments ===
+types_traits <- c("AM" = "dotted", "CF" = "solid", "WB" = "dashed")
+
+# === Graphique ===
+courb <- ggplot(data_summary, aes(x = Jour, y = Moyenne,
+                                  color = Souche,
+                                  linetype = Aliment,
+                                  group = Groupe)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2.8, shape = 21, fill = "white", stroke = 1) +
+  geom_errorbar(aes(ymin = Moyenne - ET, ymax = Moyenne + ET),
+                width = 0.4, alpha = 0.8, size = 0.8) +
+  scale_color_manual(values = couleurs_souches) +
+  scale_linetype_manual(values = types_traits) +
+  scale_x_continuous(breaks = unique(data_summary$Jour)) +
+  labs(
+    title = "Évolution du poids moyen des larves (± écart-type)",
+    x = "Jours",
+    y = "Poids moyen (g)"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    panel.grid.major = element_line(color = "gray90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 11),
+    legend.key.width = unit(1.5, "cm"),
+    axis.line = element_line(color = "black", size = 0.8)
+  ) +
+  guides(
+    color = guide_legend(title = "Souche", nrow = 1, title.position = "top"),
+    linetype = guide_legend(title = "Aliment", nrow = 1, title.position = "top")
+  )
+
+# === Sauvegarde haute résolution ===
+ggsave("courbe_poids_publication.png", courb,
+       width = 8, height = 6, dpi = 600, bg = "white")
+
+print(courb)
+
+```
+
+
+
+
+```{r}
+#CALCUL DES MOYENNES ET ECART-TYPES POUR L'ANALYSE EXPLORATOIRE
+stats_poids <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(poids_lar_fin, na.rm = TRUE),
+    ecart_type = sd(poids_lar_fin, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+
+#gmq
+stats_gmq <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(gmq, na.rm = TRUE),
+    ecart_type = sd(gmq, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+#IC_app
+stats_ic_app <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(ic_app, na.rm = TRUE),
+    ecart_type = sd(ic_app, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+#taux_survie
+stats_taux_surv <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(taux_surv, na.rm = TRUE),
+    ecart_type = sd(taux_surv, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+#RS
+stats_SR <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(SR, na.rm = TRUE),
+    ecart_type = sd(SR, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+#TB
+stats_BR <- data_graph %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(BR, na.rm = TRUE),
+    ecart_type = sd(BR, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+
+```
+
+```{r}
+print(stats_poids)
+print(stats_gmq)
+print(stats_ic_app)
+print(stats_taux_surv)
+print(stats_SR)
+print(stats_BR)
+```
+
+```{r}
+#REALISATION DES HISTOGRAMMES POUR LES VARIABLES
+hist_poids = ggplot(stats_poids, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Poids moyen final des larves par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Poids moyen (g)",
+       fill = "Aliment", 
+       ) +
+  scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) 
+
+#GMQ
+hist_gmq = ggplot(stats_gmq, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Gain moyen quotidien des larves par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "GMQ (g/jour)",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) 
+
+#IC_app
+hist_ic_app = ggplot(stats_ic_app, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Indice de consommation apparent des larves par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Indice de consommation apparent",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) 
+
+#taux_surv
+hist_taux_surv = ggplot(stats_taux_surv, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Taux de survie des larves par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Taux de survie (%)",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) 
+#SR
+hist_SR = ggplot(stats_SR, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Reduction du substrat par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Reduction du substrat (%)",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) 
+#BR
+hist_BR = ggplot(stats_BR, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Taux de bioconversion des larves par souche et aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Reduction du substrat (%)",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
+```
+
+
+```{r}
+#AFFICHAGE DES HISTOGRAMMES
+print(hist_poids)
+print(hist_gmq)
+print(hist_ic_app)
+print(hist_taux_surv)
+print(hist_SR)
+print(hist_BR)
+```
+
+```{r}
+#sauvegarde des graphes
+ggsave("poids_moyen_larves.png", hist_poids, 
+       width =  7, height = 4, dpi = 500, bg = "white")
+ggsave("Gain_moyen_quotidien.png", hist_gmq, 
+       width = 7, height = 4, dpi = 500, bg = "white")
+ggsave("Indice_consommation_apparent.png", hist_ic_app, 
+       width = 7, height = 4, dpi = 500, bg = "white")
+ggsave("Taux_de_survie.png", hist_taux_surv, 
+       width =  7, height = 4, dpi = 500, bg = "white")
+ggsave("Reduction_du_substrat.png", hist_SR, 
+       width = 7, height = 4, dpi = 500, bg = "white")
+ggsave("Taux_de_bioconversion.png", hist_BR, 
+       width =  7, height = 4, dpi = 500, bg = "white")
+```
+
+```{r}
+#GRAPHES POUR LA QUANTITE D'OEUF
+
+donnees_oeufs <- read_excel("Data_Analyse.xlsx", sheet = 3)
+
+donnees_oeufs <- donnees_oeufs %>%
+  mutate(g_oeuf = as.numeric(gsub(",", ".", g_oeuf)))
+
+print(donnees_oeufs)
+```
+
+```{r}
+# Création de l'histogramme pour les oeufs
+qte_oeuf = ggplot(donnees_oeufs, aes(x = Souches, y = g_oeuf, fill = Alliments)) +
+  geom_col(position = position_dodge(width = 0.9)) + # barres côte à côte
+  geom_text(aes(label = round(g_oeuf, 3)), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.3, size = 3) + # texte au-dessus
+  labs(title = "Quantite d'oeufs obtenue par souche et par l'aliment",
+       x = "Souches", y = "Quantite d'œufs (g)") +
+  theme_minimal()
+```
+
+
+```{r}
+# Exemple : ajout d'une colonne "se_oeuf" pour l'erreur standard
+# donnees_oeufs$se_oeuf <- c(...)  # à remplir selon tes données
+
+qte_oeuf <- ggplot(donnees_oeufs, aes(x = Souches, y = g_oeuf, fill = Alliments)) +
+  geom_col(position = position_dodge(width = 0.9)) + # barres côte à côte
+  geom_errorbar(aes(ymin = g_oeuf - se_oeuf, ymax = g_oeuf + se_oeuf),
+                position = position_dodge(width = 0.9),
+                width = 0.2) +  # largeur des barres d'erreur
+  geom_text(aes(label = round(g_oeuf, 3)), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.3, size = 3) + # texte au-dessus
+  labs(title = "Quantite d'oeufs obtenue par souche et par l'aliment",
+       x = "Souches", y = "Quantite d'œufs (g)") +
+  theme_minimal()
+
+```
+
+```{r}
+print(qte_oeuf)
+
+```
+
+
+```{r}
+#GRAPHE NOMBRE MOUCHES EMER
+
+# Exclure préalable des réplicats 5 pour Dschang, China et Indonesia
+data_graph_1 <- data_graph %>%
+  filter(!grepl("R5$", replicats))
+
+stats_mou <- data_graph_1 %>%
+  group_by(souches, aliments) %>%
+  summarise(
+    moyenne = mean(nb_tot_mou_emer, na.rm = TRUE),
+    ecart_type = sd(nb_tot_mou_emer, na.rm = TRUE),
+    se = ecart_type / sqrt(n()),  # erreur standard
+    .groups = 'drop'
+  )
+
+hist_mou = ggplot(stats_mou, aes(x = souches, y = moyenne, fill = aliments)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = moyenne - ecart_type, ymax = moyenne + ecart_type),
+                position = position_dodge(0.8), width = 0.25) +
+  labs(title = "Nombre de mouches ayant emergees par souche et par aliment",
+       subtitle = "Barres d'erreur: ecart-type",
+       x = "Souche",
+       y = "Nombre de mouches",
+       fill = "Aliment", 
+       ) +
+   scale_fill_manual(values = c("AM" = "#1f77b4", "CF" = "#ff7f0e", "WB" = "#2ca02c"),
+                    labels = c("AM", "CF", "WB")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "right") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
+
+print(hist_mou)
+
+ggsave("mouche_emergees.png", hist_mou, 
+       width = 7, height = 4, dpi = 500, bg = "white")
+```
+
+```{r}
+#ANALYSE ANOVA POUR LES MOUCHES EMERGEES
+anova_mouches <- aov(nb_tot_mou_emer ~ souches * aliments, data = data_graph_1)
+
+# Résumé de l'ANOVA
+summary(anova_mouches)
+
+# Test post-hoc (Tukey) si nécessaire
+tuk_mou = TukeyHSD(anova_mouches)
+
+lettres_result_mou <- multcompLetters4(anova_mouches, tuk_mou)
+  print(lettres_result_mou)
+```
+```{r}
+#Exportation des stats pour vérification
+write.csv(stats_poids, "poids.csv", row.names = FALSE)
+write.csv(stats_gmq, "gmq_2.csv", row.names = FALSE)
+write.csv(stats_ic_app, "ica.csv", row.names = FALSE)
+write.csv(stats_SR, "sr.csv", row.names = FALSE)
+write.csv(stats_BR, "br.csv", row.names = FALSE)
+write.csv(stats_taux_surv, "taux.csv", row.names = FALSE)
+write.csv(stats_mou, "mouches_emergees.csv", row.names = FALSE)
+```
+
+
+```{r}
+#ANALYSE ANOVA : congiguration des donnees
+
+data_china <- subset(data_graph, souches == "China")
+data_dschang <- subset(data_graph, souches == "Dschang")
+data_euro <- subset(data_graph, souches == "Euro")
+data_indonesia <- subset(data_graph, souches == "Indonesia")
+data_myanmar <- subset(data_graph, souches == "Myanmar")
+```
+
+
+```{r}
+#ANALYSE ANOVA A 1 FACTEUR POUR L'ALIMENT + sauvegarde
+
+# Liste des variables à analyser
+variables <- c("poids_lar_fin", "ic_app", "taux_surv", "SR", "BR")
+
+# Boucle sur chaque variable
+for (var in variables) {
+  cat("\nAnalyse pour :", var, "\n")
+  
+  # Création de la formule dynamiquement
+  formule <- as.formula(paste(var, "~ aliments"))
+  
+  # ANOVA
+  anova_result <- aov(formule, data = data_china)
+  print(summary(anova_result))
+  
+  # Test de Tukey
+  tuk_result <- TukeyHSD(anova_result)
+  
+  # Lettres pour différences significatives
+  lettres_result <- multcompLetters4(anova_result, tuk_result)
+  print(lettres_result)
+  
+  #Sauvegarde des donnees en fichier csv
+  #write.csv(resultats_complets, "resultats_complets_2.csv", row.names = FALSE)
+}
+```
+
+
+```{r}
+#ANALYSE ANOVA A 1 FACTEUR POUR LA SOUCHE
+# Liste des variables à analyser
+variables <- c("poids_lar_fin", "ic_app", "taux_surv", "SR", "BR", "gmq")
+
+# Liste des aliments et leurs datasets correspondants
+aliments_list <- list(
+  AM = subset(data_graph, aliments == "AM"),
+  CF = subset(data_graph, aliments == "CF"),
+  WB = subset(data_graph, aliments == "WB")
+  # Ajoutez d'autres aliments si nécessaire
+)
+
+# Liste pour stocker les résultats (différente de la première analyse)
+resultats_stats_souches <- list()
+
+# Boucle sur chaque aliment
+for (aliment_name in names(aliments_list)) {
+  cat("\n=== Analyse pour l'aliment :", aliment_name, "===\n")
+  data_aliment <- aliments_list[[aliment_name]]
+  
+  # Boucle sur chaque variable
+  for (var in variables) {
+    cat("\nVariable :", var, "\n")
+    
+    # Création de la formule dynamiquement
+    formule <- as.formula(paste(var, "~ souches"))
+    
+    # ANOVA
+    anova_result_souches <- aov(formule, data = data_aliment)
+    print(summary(anova_result_souches))
+    
+    # Test de Tukey
+    tuk_result_souches <- TukeyHSD(anova_result_souches)
+    
+    # Lettres pour différences significatives
+    lettres_souches <- multcompLetters4(anova_result_souches, tuk_result_souches)
+    print(lettres_souches)
+    
+    # Extraction des lettres en data frame
+    lettres_df_souches <- as.data.frame.list(lettres_souches[[1]])
+    lettres_df_souches$souches <- rownames(lettres_df_souches)
+    
+    # Calcul des moyennes et écarts-types
+    stats_souches <- data_aliment %>%
+      group_by(souches) %>%
+      summarise(
+        moyenne = mean(.data[[var]], na.rm = TRUE),
+        ecart_type = sd(.data[[var]], na.rm = TRUE),
+        .groups = "drop"
+      )
+    
+    # Extraction de la p-value globale de l'ANOVA
+    p_value_souches <- summary(anova_result_souches)[[1]][["Pr(>F)"]][1]
+    
+    # Fusion des stats et des lettres
+    stats_lettres_souches <- merge(stats_souches, lettres_df_souches[, c("souches", "Letters")], by = "souches")
+    stats_lettres_souches$aliment <- aliment_name
+    stats_lettres_souches$variable <- var
+    stats_lettres_souches$p_value <- p_value_souches  # Ajout de la p-value
+    
+    # Stockage dans la liste (nom différent pour éviter les conflits)
+    resultats_stats_souches[[paste(aliment_name, var, sep = "_")]] <- stats_lettres_souches
+  }
+}
+
+# Combiner toutes les tables de la liste en un seul data.frame (nom différent)
+resultats_complets_souches <- do.call(rbind, resultats_stats_souches)
+
+# Réorganiser les colonnes si besoin
+resultats_complets_souches <- resultats_complets_souches[, c("aliment", "variable", "souches", "moyenne", "ecart_type", "Letters", "p_value")]
+
+# Afficher un aperçu
+head(resultats_complets_souches)
+
+write.csv(resultats_complets_souches, "resultats_complets_souches_effet.csv", row.names = FALSE)
+```
+
+```{r}
+#ANALYSE ANOVA A 2 FACTEURS POUR SOUCHE x ALIMENT
+
+# Liste des variables à analyser
+variables <- c("poids_lar_fin", "ic_app", "taux_surv", "SR", "BR", "gmq", "nb_tot_mou_emer")
+
+# Liste pour stocker les résultats de l'ANOVA à deux facteurs
+resultats_stats_interaction <- list()
+
+# Boucle sur chaque variable
+for (var in variables) {
+  cat("\n=== Analyse pour la variable :", var, "===\n")
+  
+  # Création de la formule pour ANOVA à deux facteurs avec interaction
+  formule_interaction <- as.formula(paste(var, "~ souches * aliments"))
+  
+  # ANOVA à deux facteurs
+  anova_result_interaction <- aov(formule_interaction, data = data_graph)
+  print(summary(anova_result_interaction))
+  
+  # Test de Tukey pour l'interaction
+  tuk_result_interaction <- TukeyHSD(anova_result_interaction)
+  
+  # Lettres pour différences significatives de l'interaction
+  lettres_interaction <- multcompLetters4(anova_result_interaction, tuk_result_interaction)
+  print(lettres_interaction)
+  
+  # Extraction des lettres en data frame pour l'interaction souches:aliments
+  if("souches:aliments" %in% names(lettres_interaction)) {
+    lettres_df_interaction <- as.data.frame.list(lettres_interaction$`souches:aliments`)
+    lettres_df_interaction$interaction <- rownames(lettres_df_interaction)
+    
+    # Séparer souches et aliments de l'interaction
+    lettres_df_interaction$souches <- sapply(strsplit(lettres_df_interaction$interaction, ":"), `[`, 1)
+    lettres_df_interaction$aliments <- sapply(strsplit(lettres_df_interaction$interaction, ":"), `[`, 2)
+  } else {
+    # Si pas d'interaction significative, utiliser les lettres des effets principaux
+    lettres_df_interaction <- data.frame()
+  }
+  
+  # Calcul des moyennes et écarts-types pour chaque combinaison souches*aliments
+  stats_interaction <- data_graph %>%
+    group_by(souches, aliments) %>%
+    summarise(
+      moyenne = mean(.data[[var]], na.rm = TRUE),
+      ecart_type = sd(.data[[var]], na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Extraction des p-values de l'ANOVA
+  anova_summary <- summary(anova_result_interaction)[[1]]
+  p_value_souches <- anova_summary[["Pr(>F)"]][1]  # Effet principal souches
+  p_value_aliments <- anova_summary[["Pr(>F)"]][2]  # Effet principal aliments
+  p_value_interaction <- anova_summary[["Pr(>F)"]][3]  # Interaction souches*aliments
+  
+  # Si on a des lettres d'interaction, on les fusionne
+  if(nrow(lettres_df_interaction) > 0) {
+    stats_lettres_interaction <- merge(stats_interaction, 
+                                     lettres_df_interaction[, c("souches", "aliments", "Letters")], 
+                                     by = c("souches", "aliments"), all.x = TRUE)
+  } else {
+    stats_lettres_interaction <- stats_interaction
+    stats_lettres_interaction$Letters <- NA
+  }
+  
+  stats_lettres_interaction$variable <- var
+  stats_lettres_interaction$p_value_souches <- p_value_souches
+  stats_lettres_interaction$p_value_aliments <- p_value_aliments
+  stats_lettres_interaction$p_value_interaction <- p_value_interaction
+  
+  # Stockage dans la liste
+  resultats_stats_interaction[[var]] <- stats_lettres_interaction
+}
+
+# Combiner toutes les tables de la liste en un seul data.frame
+resultats_complets_interaction <- do.call(rbind, resultats_stats_interaction)
+
+# Réorganiser les colonnes
+resultats_complets_interaction <- resultats_complets_interaction[, c("variable", "souches", "aliments", "moyenne", "ecart_type", "Letters", 
+                                                                   "p_value_souches", "p_value_aliments", "p_value_interaction")]
+
+# Afficher un aperçu
+head(resultats_complets_interaction)
+
+# Fichier de sortie pour l'ANOVA à deux facteurs
+write.csv(resultats_complets_interaction, "resultats_complets_interaction.csv", row.names = FALSE)
+```
+```
